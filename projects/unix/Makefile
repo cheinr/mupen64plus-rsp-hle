@@ -214,7 +214,7 @@ endif
 endif
 
 # set base program pointers and flags
-CC        = $(CROSS_COMPILE)gcc
+CC       ?= $(CROSS_COMPILE)gcc
 RM       ?= rm -f
 INSTALL  ?= install
 MKDIR ?= mkdir -p
@@ -224,7 +224,7 @@ LINK.o = $(Q_LD)$(CC) $(CFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 # set special flags for given Makefile parameters
 ifeq ($(DEBUG),1)
   CFLAGS += -g
-  INSTALL_STRIP_FLAG ?= 
+  INSTALL_STRIP_FLAG ?=
 else
   CFLAGS += -DNDEBUG
   ifneq ($(OS),OSX)

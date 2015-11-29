@@ -287,12 +287,15 @@ int HleForwardTask(void* user_defined)
 EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Context,
                                      void (*DebugCallback)(void *, int, const char *))
 {
+
     ptr_CoreGetAPIVersions CoreAPIVersionFunc;
     int ConfigAPIVersion, DebugAPIVersion, VidextAPIVersion;
     float fConfigParamsVersion = 0.0f;
 
+#if (!EMSCRIPTEN)
     if (l_PluginInit)
         return M64ERR_ALREADY_INIT;
+#endif
 
     /* first thing is to set the callback function for debug info */
     l_DebugCallback = DebugCallback;
