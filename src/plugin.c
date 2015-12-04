@@ -36,7 +36,6 @@
 #include "m64p_frontend.h"
 #include "m64p_plugin.h"
 #include "m64p_types.h"
-
 #include "osal_dynamiclib.h"
 
 #define CONFIG_API_VERSION       0x020100
@@ -243,15 +242,18 @@ void HleCheckInterrupts(void* UNUSED(user_defined))
 void HleProcessDlistList(void* UNUSED(user_defined))
 {
     if (l_ProcessDlistList == NULL)
+    {
         return;
-
+    }
     (*l_ProcessDlistList)();
 }
 
 void HleProcessAlistList(void* UNUSED(user_defined))
 {
     if (l_ProcessAlistList == NULL)
+    {
         return;
+    }
 
     (*l_ProcessAlistList)();
 }
@@ -432,6 +434,7 @@ EXPORT unsigned int CALL DoRspCycles(unsigned int Cycles)
 
 EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int* CycleCount)
 {
+
     hle_init(&g_hle,
              Rsp_Info.RDRAM,
              Rsp_Info.DMEM,
