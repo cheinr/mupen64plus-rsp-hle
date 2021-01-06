@@ -1,3 +1,5 @@
 /projects/unix/_obj*/
 /projects/unix/mupen64plus-rsp-hle*.so
 /projects/unix/mupen64plus-rsp-hle*.js
+/projects/unix/*.wasm
+/projects/unix/mupen64plus-rsp-hle*.a

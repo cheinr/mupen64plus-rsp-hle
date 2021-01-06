@@ -21,6 +21,10 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#ifdef M64P_STATIC_PLUGINS
+#define M64P_CORE_PROTOTYPES 1
+#endif
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,7 +40,10 @@
 #include "m64p_frontend.h"
 #include "m64p_plugin.h"
 #include "m64p_types.h"
+
+#if (!M64P_STATIC_PLUGINS)
 #include "osal_dynamiclib.h"
+#endif
 
 #define CONFIG_API_VERSION       0x020100
 #define CONFIG_PARAM_VERSION     1.00
@@ -77,6 +84,7 @@ static ptr_DoRspCycles l_DoRspCycles = NULL;
 static ptr_RomClosed l_RomClosed = NULL;
 static ptr_PluginShutdown l_PluginShutdown = NULL;
 
+#if (!M64P_STATIC_PLUGINS)
 /* definitions of pointers to Core functions */
 static ptr_ConfigOpenSection      ConfigOpenSection = NULL;
 static ptr_ConfigDeleteSection    ConfigDeleteSection = NULL;
@@ -91,14 +99,19 @@ static ptr_ConfigGetParamFloat    ConfigGetParamFloat = NULL;
 static ptr_ConfigGetParamBool     ConfigGetParamBool = NULL;
 static ptr_ConfigGetParamString   ConfigGetParamString = NULL;
 static ptr_CoreDoCommand          CoreDoCommand = NULL;
+#endif
 
 /* local function */
 static void teardown_rsp_fallback()
 {
+
+#if (!M64P_STATIC_PLUGINS)
     if (l_RspFallback != NULL) {
         (*l_PluginShutdown)();
         osal_dynlib_close(l_RspFallback);
     }
+#endif
+    
 
     l_RspFallback = NULL;
     l_DoRspCycles = NULL;
@@ -119,11 +132,13 @@ static void setup_rsp_fallback(const char* rsp_fallback_path)
         return;
     }
 
+#if (!M64P_STATIC_PLUGINS)
     /* load plugin */
     if (osal_dynlib_open(&handle, rsp_fallback_path) != M64ERR_SUCCESS) {
         HleErrorMessage(NULL, "Can't load library: %s", rsp_fallback_path);
         return;
     }
+
 
     /* call the GetVersion function for the plugin and check compatibility */
     ptr_PluginGetVersion PluginGetVersion = (ptr_PluginGetVersion) osal_dynlib_getproc(handle, "PluginGetVersion");
@@ -173,17 +188,23 @@ static void setup_rsp_fallback(const char* rsp_fallback_path)
 
     /* call the plugin's initialization function and make sure it starts okay */
     if ((*PluginStartup)(l_CoreHandle, l_DebugCallContext, l_DebugCallback) != M64ERR_SUCCESS) {
-        HleErrorMessage(NULL, "Error: %s plugin library '%s' failed to start.", plugin_name, rsp_fallback_path);
-        goto close_handle;
+      HleErrorMessage(NULL, "Error: %s plugin library '%s' failed to start.", plugin_name, rsp_fallback_path);
+      goto close_handle;
     }
+    
+#endif
+
+
 
     /* OK we're done ! */
     l_RspFallback = handle;
     HleInfoMessage(NULL, "RSP Fallback '%s' loaded successfully !", rsp_fallback_path);
     return;
 
+#if (!M64P_STATIC_PLUGINS)
 close_handle:
     osal_dynlib_close(handle);
+#endif
 }
 
 static void DebugMessage(int level, const char *message, va_list args)
@@ -286,7 +307,13 @@ int HleForwardTask(void* user_defined)
 
 
 /* DLL-exported functions */
-EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Context,
+EXPORT m64p_error CALL
+#if M64P_STATIC_PLUGINS
+PluginStartupRSP
+#else
+PluginStartup
+#endif
+(m64p_dynlib_handle CoreLibHandle, void *Context,
                                      void (*DebugCallback)(void *, int, const char *))
 {
 
@@ -294,17 +321,22 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     int ConfigAPIVersion, DebugAPIVersion, VidextAPIVersion;
     float fConfigParamsVersion = 0.0f;
 
-#if (!EMSCRIPTEN)
-    if (l_PluginInit)
+    if (l_PluginInit) {
+      printf("Plugin already init\n");
         return M64ERR_ALREADY_INIT;
-#endif
+    }
 
     /* first thing is to set the callback function for debug info */
     l_DebugCallback = DebugCallback;
     l_DebugCallContext = Context;
 
+#if (!M64P_STATIC_PLUGINS)
     /* attach and call the CoreGetAPIVersions function, check Config API version for compatibility */
     CoreAPIVersionFunc = (ptr_CoreGetAPIVersions) osal_dynlib_getproc(CoreLibHandle, "CoreGetAPIVersions");
+#else
+    CoreAPIVersionFunc = &CoreGetAPIVersions;
+#endif
+ 
     if (CoreAPIVersionFunc == NULL)
     {
         HleErrorMessage(NULL, "Core emulator broken; no CoreAPIVersionFunc() function found.");
@@ -319,6 +351,8 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
         return M64ERR_INCOMPATIBLE;
     }
 
+#if (!M64P_STATIC_PLUGINS)
+    
     /* Get the core config function pointers from the library handle */
     ConfigOpenSection = (ptr_ConfigOpenSection) osal_dynlib_getproc(CoreLibHandle, "ConfigOpenSection");
     ConfigDeleteSection = (ptr_ConfigDeleteSection) osal_dynlib_getproc(CoreLibHandle, "ConfigDeleteSection");
@@ -338,12 +372,14 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
         !ConfigGetParamInt   || !ConfigGetParamFloat   || !ConfigGetParamBool   || !ConfigGetParamString)
         return M64ERR_INCOMPATIBLE;
 
+
     /* Get core DoCommand function */
     CoreDoCommand = (ptr_CoreDoCommand) osal_dynlib_getproc(CoreLibHandle, "CoreDoCommand");
     if (!CoreDoCommand) {
         return M64ERR_INCOMPATIBLE;
     }
-
+#endif
+    
     /* get a configuration section handle */
     if (ConfigOpenSection(RSP_HLE_CONFIG_SECTION, &l_ConfigRspHle) != M64ERR_SUCCESS)
     {
@@ -389,7 +425,13 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     return M64ERR_SUCCESS;
 }
 
-EXPORT m64p_error CALL PluginShutdown(void)
+EXPORT m64p_error CALL
+#if M64P_STATIC_PLUGINS
+PluginShutdownRSP
+#else
+PluginShutdown
+#endif
+(void)
 {
     if (!l_PluginInit)
         return M64ERR_NOT_INIT;
@@ -405,7 +447,13 @@ EXPORT m64p_error CALL PluginShutdown(void)
     return M64ERR_SUCCESS;
 }
 
-EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *PluginType, int *PluginVersion, int *APIVersion, const char **PluginNamePtr, int *Capabilities)
+EXPORT m64p_error CALL
+#if M64P_STATIC_PLUGINS
+PluginGetVersionRSP
+#else
+PluginGetVersion
+#endif
+(m64p_plugin_type *PluginType, int *PluginVersion, int *APIVersion, const char **PluginNamePtr, int *Capabilities)
 {
     /* set version info */
     if (PluginType != NULL)
@@ -476,7 +524,13 @@ EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int* CycleCount)
     }
 }
 
-EXPORT void CALL RomClosed(void)
+EXPORT void CALL
+#if M64P_STATIC_PLUGINS
+RomClosedRSP
+#else
+RomClosed
+#endif
+(void)
 {
     g_hle.cached_ucodes.count = 0;
 
