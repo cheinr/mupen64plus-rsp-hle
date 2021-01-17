@@ -266,12 +266,14 @@ SOURCE = \
 	$(SRCDIR)/re2.c \
 	$(SRCDIR)/plugin.c
 
-ifeq ($(OS), MINGW)
-SOURCE += \
+ifneq ($(M64P_STATIC_PLUGINS), 1)
+  ifeq ($(OS), MINGW)
+    SOURCE += \
 	$(SRCDIR)/osal_dynamiclib_win32.c
-else
-SOURCE += \
+  else
+    SOURCE += \
 	$(SRCDIR)/osal_dynamiclib_unix.c
+  endif
 endif
 
 # generate a list of object files build, make a temporary directory for them
