@@ -1050,4 +1050,3 @@ void alist_overload(struct hle_t* hle, uint16_t dmem, int16_t count, int16_t gai
         count --;
     }
 }
-
